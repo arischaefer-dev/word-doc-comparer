@@ -801,13 +801,13 @@ Note: Associated text was not available, so analysis is based on context."""
                     raise Exception("Could not parse AI response as JSON")
             
             # Convert AI analysis to our format
-            intent = {
+            intent = self.validate_intent_structure({
                 'type': ai_analysis.get('change_type', 'unknown'),
                 'scope': ai_analysis.get('scope', 'local'),
                 'from_text': ai_analysis.get('from_text'),
                 'to_text': ai_analysis.get('to_text'),
                 'raw_comment': comment_text
-            }
+            })
             
             validation = {
                 'status': ai_analysis.get('status', 'unclear'),
@@ -861,6 +861,14 @@ Note: Associated text was not available, so analysis is based on context."""
             'requires_manual_review': validation_result.get('ambiguous', False),
             'ai_powered': False
         }
+    
+    def validate_intent_structure(self, intent):
+        """Ensure intent object has all required fields"""
+        required_fields = ['type', 'from_text', 'to_text', 'scope', 'raw_comment']
+        for field in required_fields:
+            if field not in intent:
+                intent[field] = None
+        return intent
     
     def parse_comment_intent(self, comment_text, associated_text=None):
         """Parse comment text to understand the intended change"""
@@ -962,43 +970,45 @@ Note: Associated text was not available, so analysis is based on context."""
                         from_text = groups[0] if len(groups) >= 1 and groups[0] else None
                         to_text = groups[1] if len(groups) >= 2 and groups[1] else None
                     
-                    return {
+                    return self.validate_intent_structure({
                         'type': change_type,
                         'from_text': from_text,
                         'to_text': to_text,
                         'scope': 'global' if 'global' in change_type else 'local',
                         'raw_comment': comment_text
-                    }
+                    })
         
         # Smart fallback: try to extract two words that might be a replacement
         # Look for patterns like "word1 word2" where it might mean word1->word2
         simple_replacement = re.search(r'^["\']?(\w+)["\']?\s*[?/→-]+\s*["\']?(\w+)["\']?$', comment_text.strip(), re.IGNORECASE)
         if simple_replacement:
-            return {
+            return self.validate_intent_structure({
                 'type': 'replace_local',
                 'from_text': simple_replacement.group(1),
                 'to_text': simple_replacement.group(2),
                 'scope': 'local',
                 'raw_comment': comment_text
-            }
+            })
         
         # Another fallback: single word might be a replacement target
         single_word = re.search(r'^["\']?(\w+)["\']?$', comment_text.strip(), re.IGNORECASE)
         if single_word:
-            return {
+            return self.validate_intent_structure({
                 'type': 'replace_local',
                 'from_text': None,  # Will need context to determine
                 'to_text': single_word.group(1),
                 'scope': 'local',
                 'raw_comment': comment_text
-            }
+            })
         
-        # If no pattern matches, return generic intent
-        return {
+        # If no pattern matches, return generic intent with all required fields
+        return self.validate_intent_structure({
             'type': 'unknown',
+            'from_text': None,
+            'to_text': None,
             'scope': 'manual_review',
             'raw_comment': comment_text
-        }
+        })
     
     def validate_change_application(self, intent, original_text, revised_text):
         """Validate if the intended change was correctly applied"""
@@ -1011,8 +1021,8 @@ Note: Associated text was not available, so analysis is based on context."""
             }
         
         if intent['type'] in ['replace_global', 'replace_local']:
-            from_text = intent['from_text']
-            to_text = intent['to_text']
+            from_text = intent.get('from_text')
+            to_text = intent.get('to_text')
             
             # Handle case where only target word is specified (single word comment)
             if not from_text and to_text:
@@ -1542,7 +1552,9 @@ def analyze_documents(session_id):
         
     except Exception as e:
         logger.error(f"Analysis error: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        import traceback
+        logger.error(f"Full traceback: {traceback.format_exc()}")
+        return jsonify({'error': f'Analysis failed: {str(e)}'}), 500
 
 @app.route('/report/<session_id>')
 def view_report(session_id):
