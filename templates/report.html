@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document Comparison Report</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f7fa;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2c3e50, #3498db);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.2em;
+            margin-bottom: 10px;
+        }
+
+        .header .timestamp {
+            opacity: 0.8;
+            font-size: 0.9em;
+        }
+
+        .main-content {
+            padding: 0;
+        }
+
+        .summary-section {
+            background: #f8f9fa;
+            padding: 30px;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .summary-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        .summary-card .number {
+            font-size: 2.5em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .summary-card .label {
+            color: #7f8c8d;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .summary-card.success .number { color: #27ae60; }
+        .summary-card.warning .number { color: #f39c12; }
+        .summary-card.danger .number { color: #e74c3c; }
+        .summary-card.info .number { color: #3498db; }
+
+        .tabs {
+            display: flex;
+            background: #ecf0f1;
+            border-bottom: 1px solid #bdc3c7;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 15px 20px;
+            text-align: center;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            color: #7f8c8d;
+            transition: all 0.3s;
+        }
+
+        .tab.active {
+            background: white;
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+        }
+
+        .tab-content {
+            display: none;
+            padding: 30px;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .comment-analysis {
+            margin-bottom: 30px;
+        }
+
+        .comment-item {
+            background: #f8f9fa;
+            border-left: 4px solid #bdc3c7;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .comment-item.success { border-left-color: #27ae60; }
+        .comment-item.warning { border-left-color: #f39c12; }
+        .comment-item.danger { border-left-color: #e74c3c; }
+        .comment-item.info { border-left-color: #3498db; }
+
+        .comment-header {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .comment-status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .comment-status.success {
+            background: #d5f4e6;
+            color: #27ae60;
+        }
+
+        .comment-status.warning {
+            background: #fef5e7;
+            color: #f39c12;
+        }
+
+        .comment-status.danger {
+            background: #fadbd8;
+            color: #e74c3c;
+        }
+
+        .comment-status.info {
+            background: #d6eaf8;
+            color: #3498db;
+        }
+
+        .comment-text {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            font-style: italic;
+            border: 1px solid #e9ecef;
+        }
+
+        .comment-details {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+        }
+
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            border-bottom: 1px solid #f8f9fa;
+        }
+
+        .detail-row:last-child {
+            border-bottom: none;
+        }
+
+        .detail-label {
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .detail-value {
+            color: #7f8c8d;
+        }
+
+        .diff-container {
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .diff-header {
+            background: #f8f9fa;
+            padding: 15px;
+            border-bottom: 1px solid #e9ecef;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .diff-content {
+            padding: 0;
+            overflow-x: auto;
+        }
+
+        .actions {
+            padding: 30px;
+            text-align: center;
+            background: #f8f9fa;
+            border-top: 1px solid #e9ecef;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #3498db, #2980b9);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin: 0 10px;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(52, 152, 219, 0.3);
+        }
+
+        .btn.secondary {
+            background: linear-gradient(135deg, #95a5a6, #7f8c8d);
+        }
+
+        .btn.success {
+            background: linear-gradient(135deg, #27ae60, #229954);
+        }
+
+        /* Diff styling */
+        .diff table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+
+        .diff td {
+            padding: 8px;
+            vertical-align: top;
+            border: 1px solid #e9ecef;
+        }
+
+        .diff .diff_header {
+            background: #2c3e50;
+            color: white;
+        }
+
+        .diff .diff_next {
+            background: #3498db;
+            color: white;
+        }
+
+        .diff .diff_add {
+            background: #d5f4e6;
+        }
+
+        .diff .diff_chg {
+            background: #fff3cd;
+        }
+
+        .diff .diff_sub {
+            background: #fadbd8;
+        }
+
+        .manual-review {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        .manual-review h3 {
+            color: #856404;
+            margin-bottom: 10px;
+        }
+
+        @media (max-width: 768px) {
+            .summary-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .tabs {
+                flex-direction: column;
+            }
+            
+            .main-content {
+                padding: 0;
+            }
+            
+            .tab-content {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Document Comparison Report</h1>
+            <div class="timestamp">Generated: {{ report.timestamp }}</div>
+        </div>
+
+        <div class="main-content">
+            <div class="summary-section">
+                <div class="summary-grid">
+                    <div class="summary-card info">
+                        <div class="number">{{ report.summary.total_comments }}</div>
+                        <div class="label">Total Comments</div>
+                    </div>
+                    <div class="summary-card success">
+                        <div class="number">{{ report.summary.correctly_applied }}</div>
+                        <div class="label">Correctly Applied</div>
+                    </div>
+                    <div class="summary-card warning">
+                        <div class="number">{{ report.summary.partially_applied }}</div>
+                        <div class="label">Partially Applied</div>
+                    </div>
+                    <div class="summary-card danger">
+                        <div class="number">{{ report.summary.not_applied }}</div>
+                        <div class="label">Not Applied</div>
+                    </div>
+                    <div class="summary-card info">
+                        <div class="number">{{ "%.1f"|format(report.summary.success_rate) }}%</div>
+                        <div class="label">Success Rate</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tabs">
+                <button class="tab active" onclick="showTab('comments')">📝 Comment Analysis</button>
+                <button class="tab" onclick="showTab('diff')">📄 Side-by-Side Diff</button>
+                <button class="tab" onclick="showTab('manual')">⚠️ Manual Review</button>
+            </div>
+
+            <div id="comments" class="tab-content active">
+                <div class="comment-analysis">
+                    {% for result in report.analysis_results %}
+                    <div class="comment-item {{ 'success' if result.validation.status == 'correctly_applied' else 'warning' if result.validation.status == 'partially_applied' else 'danger' if result.validation.status == 'not_applied' else 'info' }}">
+                        <div class="comment-header">
+                            <span class="comment-status {{ 'success' if result.validation.status == 'correctly_applied' else 'warning' if result.validation.status == 'partially_applied' else 'danger' if result.validation.status == 'not_applied' else 'info' }}">
+                                {{ result.validation.status.replace('_', ' ').title() }}
+                            </span>
+                            {% if result.get('ai_powered', False) %}
+                            <span style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.7em; margin-left: 10px;">🤖 AI Analyzed</span>
+                            {% else %}
+                            <span style="background: #95a5a6; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.7em; margin-left: 10px;">📝 Pattern Match</span>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="comment-text">
+                            "{{ result.comment.text }}"
+                        </div>
+                        
+                        <div class="comment-details">
+                            {% if result.comment.get('associated_text') %}
+                            <div class="detail-row">
+                                <span class="detail-label">Associated Text:</span>
+                                <span class="detail-value" style="font-style: italic; background: #f8f9fa; padding: 2px 6px; border-radius: 4px;">"{{ result.comment.associated_text }}"</span>
+                            </div>
+                            {% endif %}
+                            <div class="detail-row">
+                                <span class="detail-label">Change Type:</span>
+                                <span class="detail-value">{{ result.intent.type.replace('_', ' ').title() }}</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Scope:</span>
+                                <span class="detail-value">{{ result.intent.scope.title() }}</span>
+                            </div>
+                            {% if result.intent.from_text %}
+                            <div class="detail-row">
+                                <span class="detail-label">From:</span>
+                                <span class="detail-value">"{{ result.intent.from_text }}"</span>
+                            </div>
+                            {% endif %}
+                            {% if result.intent.to_text %}
+                            <div class="detail-row">
+                                <span class="detail-label">To:</span>
+                                <span class="detail-value">"{{ result.intent.to_text }}"</span>
+                            </div>
+                            {% endif %}
+                            <div class="detail-row">
+                                <span class="detail-label">Result:</span>
+                                <span class="detail-value">{{ result.validation.message }}</span>
+                            </div>
+                            {% if result.get('ai_powered', False) and result.validation.get('confidence') %}
+                            <div class="detail-row">
+                                <span class="detail-label">AI Confidence:</span>
+                                <span class="detail-value">{{ "%.1f"|format(result.validation.confidence * 100) }}%</span>
+                            </div>
+                            {% endif %}
+                            {% if result.validation.details %}
+                            <div class="detail-row">
+                                <span class="detail-label">Details:</span>
+                                <span class="detail-value">
+                                    Original: {{ result.validation.details.original_count }}, 
+                                    Remaining: {{ result.validation.details.remaining_count }}, 
+                                    New: {{ result.validation.details.new_count }}
+                                </span>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div id="diff" class="tab-content">
+                <div class="diff-container">
+                    <div class="diff-header">
+                        📄 Side-by-Side Document Comparison
+                    </div>
+                    <div class="diff-content">
+                        <div class="diff">
+                            {{ report.diff_html|safe }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="manual" class="tab-content">
+                <h2>⚠️ Comments Requiring Manual Review</h2>
+                
+                {% set manual_reviews = report.analysis_results | selectattr('requires_manual_review') | list %}
+                
+                {% if manual_reviews %}
+                    {% for result in manual_reviews %}
+                    <div class="manual-review">
+                        <h3>Comment: "{{ result.comment.text }}"</h3>
+                        <p><strong>Reason:</strong> {{ result.validation.message }}</p>
+                        <p><strong>Context:</strong> {{ result.comment.context }}</p>
+                        <p><strong>Recommended Action:</strong> Manual review required to determine the intended scope and whether the change was correctly applied.</p>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="manual-review">
+                        <h3>✅ No Manual Review Required</h3>
+                        <p>All comments have been automatically analyzed and validated.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="actions">
+            <a href="/" class="btn secondary">🏠 New Analysis</a>
+            <button class="btn" onclick="window.print()">🖨️ Print Report</button>
+            <button class="btn success" onclick="exportReport()">📄 Export to PDF</button>
+        </div>
+    </div>
+
+    <script>
+        function showTab(tabName) {
+            // Hide all tab contents
+            const contents = document.querySelectorAll('.tab-content');
+            contents.forEach(content => content.classList.remove('active'));
+            
+            // Remove active class from all tabs
+            const tabs = document.querySelectorAll('.tab');
+            tabs.forEach(tab => tab.classList.remove('active'));
+            
+            // Show selected tab content
+            document.getElementById(tabName).classList.add('active');
+            
+            // Add active class to clicked tab
+            event.target.classList.add('active');
+        }
+
+        function exportReport() {
+            // This would typically generate a PDF
+            alert('PDF export functionality would be implemented here');
+        }
+
+        // Auto-scroll to first manual review item if any
+        document.addEventListener('DOMContentLoaded', function() {
+            const manualReviews = document.querySelectorAll('.manual-review');
+            if (manualReviews.length > 1) { // More than just the "no manual review" message
+                // Highlight the manual review tab
+                const manualTab = document.querySelector('[onclick="showTab(\'manual\')"]');
+                if (manualTab) {
+                    manualTab.style.background = '#fff3cd';
+                    manualTab.style.color = '#856404';
+                }
+            }
+        });
+    </script>
+</body>
+</html>

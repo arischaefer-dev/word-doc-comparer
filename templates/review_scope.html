@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Review Comment Scope - Word Document Comparer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .instructions {
+            background: #f8f9fa;
+            border-left: 4px solid #4CAF50;
+            padding: 20px;
+            margin-bottom: 30px;
+            border-radius: 5px;
+        }
+
+        .instructions h3 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .instructions ul {
+            margin-left: 20px;
+            color: #666;
+        }
+
+        .instructions li {
+            margin-bottom: 5px;
+        }
+
+        .comment-card {
+            background: #fff;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 25px;
+            margin-bottom: 25px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s ease;
+        }
+
+        .comment-card:hover {
+            border-color: #4CAF50;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .comment-header {
+            display: flex;
+            justify-content: between;
+            align-items: flex-start;
+            margin-bottom: 15px;
+        }
+
+        .comment-number {
+            background: #4CAF50;
+            color: white;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+            margin-right: 15px;
+            flex-shrink: 0;
+        }
+
+        .comment-info {
+            flex-grow: 1;
+        }
+
+        .comment-text {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .comment-meta {
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        .associated-text {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+
+        .associated-text strong {
+            color: #856404;
+        }
+
+        .associated-text .text-content {
+            font-family: monospace;
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 3px;
+            margin-top: 8px;
+            border-left: 3px solid #ffc107;
+        }
+
+        .scope-selection {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .scope-selection h4 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .scope-options {
+            display: flex;
+            gap: 20px;
+        }
+
+        .scope-option {
+            flex: 1;
+            position: relative;
+        }
+
+        .scope-option input[type="radio"] {
+            display: none;
+        }
+
+        .scope-option label {
+            display: block;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.3s ease;
+            background: #f8f9fa;
+        }
+
+        .scope-option label:hover {
+            border-color: #4CAF50;
+            background: #f1f8e9;
+        }
+
+        .scope-option input[type="radio"]:checked + label {
+            border-color: #4CAF50;
+            background: #e8f5e8;
+            color: #2e7d32;
+            font-weight: 600;
+        }
+
+        .scope-option .scope-title {
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .scope-option .scope-description {
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        .analyze-button {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 30px;
+            width: 100%;
+        }
+
+        .analyze-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(76, 175, 80, 0.3);
+        }
+
+        .analyze-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .files-info {
+            background: #e3f2fd;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .files-info strong {
+            color: #1976d2;
+        }
+
+        @media (max-width: 768px) {
+            .scope-options {
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            .comment-header {
+                flex-direction: column;
+            }
+            
+            .comment-number {
+                margin-bottom: 10px;
+                align-self: flex-start;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📝 Review Comment Scope</h1>
+            <p>Please specify whether each comment should be applied locally or globally</p>
+        </div>
+
+        <div class="content">
+            <div class="files-info">
+                <strong>Comparing:</strong> {{ original_file }} ↔ {{ revised_file }}
+            </div>
+
+            <div class="instructions">
+                <h3>🔍 Instructions</h3>
+                <ul>
+                    <li><strong>Local:</strong> Apply the change only to the specific word, sentence, or paragraph the comment refers to</li>
+                    <li><strong>Global:</strong> Apply the change throughout the entire document (e.g., character name changes)</li>
+                    <li>Review each comment and its associated text to determine the intended scope</li>
+                </ul>
+            </div>
+
+            <form id="scopeForm" method="POST" action="/analyze/{{ session_id }}">
+                {% for comment in comments %}
+                <div class="comment-card">
+                    <div class="comment-header">
+                        <div class="comment-number">{{ loop.index }}</div>
+                        <div class="comment-info">
+                            <div class="comment-text">"{{ comment.text }}"</div>
+                            <div class="comment-meta">
+                                {% if comment.author %}by {{ comment.author }}{% endif %}
+                                {% if comment.date %} • {{ comment.date }}{% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if comment.associated_text %}
+                    <div class="associated-text">
+                        <strong>📍 This comment refers to:</strong>
+                        <div class="text-content">{{ comment.associated_text }}</div>
+                    </div>
+                    {% endif %}
+
+                    <div class="scope-selection">
+                        <h4>How should this change be applied?</h4>
+                        <div class="scope-options">
+                            <div class="scope-option">
+                                <input type="radio" 
+                                       id="local_{{ loop.index0 }}" 
+                                       name="scope_{{ loop.index0 }}" 
+                                       value="local" 
+                                       {% if not comment.text.lower().__contains__('throughout') and not comment.text.lower().__contains__('all') and not comment.text.lower().__contains__('name') %}checked{% endif %}>
+                                <label for="local_{{ loop.index0 }}">
+                                    <div class="scope-title">🎯 Local</div>
+                                    <div class="scope-description">Apply to this specific instance only</div>
+                                </label>
+                            </div>
+                            <div class="scope-option">
+                                <input type="radio" 
+                                       id="global_{{ loop.index0 }}" 
+                                       name="scope_{{ loop.index0 }}" 
+                                       value="global"
+                                       {% if comment.text.lower().__contains__('throughout') or comment.text.lower().__contains__('all') or comment.text.lower().__contains__('name') %}checked{% endif %}>
+                                <label for="global_{{ loop.index0 }}">
+                                    <div class="scope-title">🌐 Global</div>
+                                    <div class="scope-description">Apply throughout entire document</div>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+
+                <button type="submit" class="analyze-button" id="analyzeBtn">
+                    🚀 Analyze Documents with Selected Scopes
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('scopeForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const analyzeBtn = document.getElementById('analyzeBtn');
+            analyzeBtn.textContent = '⏳ Analyzing...';
+            analyzeBtn.disabled = true;
+            
+            // Get form data
+            const formData = new FormData(this);
+            const data = {};
+            for (let [key, value] of formData.entries()) {
+                data[key] = value;
+            }
+            
+            // Submit to analyze endpoint
+            fetch(this.action, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.href = '/report/{{ session_id }}';
+                } else {
+                    throw new Error(data.error || 'Analysis failed');
+                }
+            })
+            .catch(error => {
+                console.error('Analysis error:', error);
+                alert('Analysis failed: ' + error.message);
+                analyzeBtn.textContent = '🚀 Analyze Documents with Selected Scopes';
+                analyzeBtn.disabled = false;
+            });
+        });
+    </script>
+</body>
+</html>
