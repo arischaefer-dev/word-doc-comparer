@@ -1419,6 +1419,11 @@ analyzer = WordDocumentAnalyzer()
 def index():
     return render_template('index.html')
 
+@app.route('/health')
+def health_check():
+    """Health check endpoint for Railway"""
+    return jsonify({'status': 'healthy', 'service': 'word-doc-comparer'})
+
 @app.route('/upload', methods=['POST'])
 def upload_files():
     """Handle file uploads"""
