@@ -1071,6 +1071,34 @@ Note: Associated text was not available, so analysis is based on document compar
         
         for pattern, change_type, description in style_patterns:
             if re.search(pattern, comment_text, re.IGNORECASE):
+                
+                # For contraction-related comments, try to find specific contractions
+                if 'contraction' in description.lower() and associated_text:
+                    contractions = self.find_contractions(associated_text)
+                    if contractions:
+                        # Show the specific contractions that need to be expanded
+                        from_text = ', '.join(contractions)
+                        to_text = ', '.join([self.expand_contraction(c) for c in contractions])
+                        return self.validate_intent_structure({
+                            'type': change_type,
+                            'from_text': from_text,
+                            'to_text': to_text,
+                            'scope': 'local',
+                            'raw_comment': comment_text,
+                            'style_description': description
+                        })
+                    else:
+                        # No contractions found - should already be correct
+                        return self.validate_intent_structure({
+                            'type': change_type,
+                            'from_text': associated_text,
+                            'to_text': 'no_contractions_found',
+                            'scope': 'local',
+                            'raw_comment': comment_text,
+                            'style_description': description
+                        })
+                
+                # For other style comments, use the text as-is
                 return self.validate_intent_structure({
                     'type': change_type,
                     'from_text': associated_text or 'style_issue', 
@@ -1452,6 +1480,71 @@ Note: Associated text was not available, so analysis is based on document compar
         
         # Remove duplicates and return
         return list(set(contractions))
+    
+    def expand_contraction(self, contraction):
+        """Expand a single contraction to its full form"""
+        expansions = {
+            # Common contractions
+            "can't": "cannot",
+            "won't": "will not", 
+            "shouldn't": "should not",
+            "couldn't": "could not",
+            "wouldn't": "would not",
+            "isn't": "is not",
+            "aren't": "are not",
+            "wasn't": "was not",
+            "weren't": "were not",
+            "don't": "do not",
+            "doesn't": "does not",
+            "didn't": "did not",
+            "haven't": "have not",
+            "hasn't": "has not",
+            "hadn't": "had not",
+            "I'm": "I am",
+            "you're": "you are",
+            "he's": "he is",
+            "she's": "she is",
+            "it's": "it is",
+            "we're": "we are", 
+            "they're": "they are",
+            "I'll": "I will",
+            "you'll": "you will",
+            "he'll": "he will",
+            "she'll": "she will",
+            "it'll": "it will",
+            "we'll": "we will",
+            "they'll": "they will",
+            "I'd": "I would",
+            "you'd": "you would",
+            "he'd": "he would",
+            "she'd": "she would",
+            "it'd": "it would",
+            "we'd": "we would", 
+            "they'd": "they would",
+            "I've": "I have",
+            "you've": "you have",
+            "we've": "we have",
+            "they've": "they have",
+            # Possessive contractions that might be confused
+            "storm's": "storm has",  # Context dependent, but common expansion
+        }
+        
+        # Case-insensitive lookup
+        lower_contraction = contraction.lower()
+        if lower_contraction in expansions:
+            expansion = expansions[lower_contraction]
+            # Preserve original capitalization
+            if contraction[0].isupper():
+                return expansion.capitalize()
+            return expansion
+        
+        # If not in our dictionary, try basic apostrophe-s handling
+        if contraction.lower().endswith("'s"):
+            base = contraction[:-2]
+            return f"{base} has"  # Common expansion, context dependent
+        
+        # Fallback: return original if we can't expand it
+        return contraction
     
     def generate_comparison_report(self, session_id):
         """Generate a comprehensive comparison report"""
