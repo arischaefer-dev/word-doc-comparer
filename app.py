@@ -1859,6 +1859,16 @@ def test_contractions():
     # Test style parsing
     style_result = analyzer.parse_style_comment("Don't use contractions", test_text)
     
+    # Test the full analysis flow like the web app does
+    test_comment = {
+        'text': "Don't use contractions",
+        'associated_text': test_text,
+        'user_scope': 'local'
+    }
+    
+    # Test fallback analysis (what web app uses when no AI)
+    fallback_result = analyzer.fallback_analyze_comment(test_comment, test_text, test_text)
+    
     return jsonify({
         'version': '2.1',
         'deployment_time': datetime.now().isoformat(),
@@ -1868,6 +1878,13 @@ def test_contractions():
             'from_text': style_result['from_text'] if style_result else 'No match',
             'to_text': style_result['to_text'] if style_result else 'No match',
             'type': style_result['type'] if style_result else 'No match'
+        },
+        'fallback_analysis': {
+            'intent_from': fallback_result['intent']['from_text'],
+            'intent_to': fallback_result['intent']['to_text'],
+            'intent_type': fallback_result['intent']['type'],
+            'validation_status': fallback_result['validation']['status'],
+            'validation_message': fallback_result['validation']['message']
         },
         'expected': {
             'contractions': ["Storm's"],
@@ -1879,6 +1896,63 @@ def test_contractions():
                                style_result['from_text'] == "Storm's" and 
                                style_result['to_text'] == "Storm has") else 'broken'
     })
+
+@app.route('/api/debug-comment', methods=['POST'])
+def debug_comment():
+    """Debug endpoint to analyze actual comment data from web app"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No JSON data provided'}), 400
+            
+        analyzer = WordDocumentAnalyzer()
+        
+        comment_text = data.get('comment_text', '')
+        associated_text = data.get('associated_text', '')
+        original_text = data.get('original_text', '')
+        revised_text = data.get('revised_text', '')
+        
+        # Test contraction detection on the actual associated text
+        contractions = analyzer.find_contractions(associated_text)
+        
+        # Test style parsing  
+        style_result = analyzer.parse_style_comment(comment_text, associated_text)
+        
+        # Test full fallback analysis
+        test_comment = {
+            'text': comment_text,
+            'associated_text': associated_text,
+            'user_scope': 'local'
+        }
+        fallback_result = analyzer.fallback_analyze_comment(test_comment, original_text, revised_text)
+        
+        return jsonify({
+            'debug_info': {
+                'comment_text': comment_text,
+                'associated_text': associated_text,
+                'associated_text_length': len(associated_text),
+                'associated_text_repr': repr(associated_text),
+                'original_text_length': len(original_text),
+                'revised_text_length': len(revised_text)
+            },
+            'contraction_detection': {
+                'contractions_found': contractions,
+                'detection_working': len(contractions) > 0
+            },
+            'style_parsing': {
+                'result': style_result,
+                'working': style_result is not None
+            },
+            'fallback_analysis': {
+                'intent_from': fallback_result['intent']['from_text'],
+                'intent_to': fallback_result['intent']['to_text'],
+                'intent_type': fallback_result['intent']['type'],
+                'validation_status': fallback_result['validation']['status']
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e), 'traceback': str(e.__class__.__name__)}), 500
 
 @app.route('/upload', methods=['POST'])
 def upload_files():
