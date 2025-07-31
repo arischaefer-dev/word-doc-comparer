@@ -1480,6 +1480,25 @@ def health_check():
     }
     return jsonify(health_status)
 
+@app.route('/api/status')
+def api_status():
+    """API status endpoint for UI"""
+    status = {
+        'ai_enabled': bool(ANTHROPIC_API_KEY and ANTHROPIC_AVAILABLE) or bool(OPENAI_API_KEY and OPENAI_AVAILABLE),
+        'anthropic': {
+            'available': ANTHROPIC_AVAILABLE,
+            'configured': bool(ANTHROPIC_API_KEY),
+            'ready': bool(ANTHROPIC_API_KEY and ANTHROPIC_AVAILABLE)
+        },
+        'openai': {
+            'available': OPENAI_AVAILABLE,
+            'configured': bool(OPENAI_API_KEY),
+            'ready': bool(OPENAI_API_KEY and OPENAI_AVAILABLE)
+        },
+        'primary_ai': 'anthropic' if (ANTHROPIC_API_KEY and ANTHROPIC_AVAILABLE) else ('openai' if (OPENAI_API_KEY and OPENAI_AVAILABLE) else 'none')
+    }
+    return jsonify(status)
+
 @app.route('/upload', methods=['POST'])
 def upload_files():
     """Handle file uploads"""

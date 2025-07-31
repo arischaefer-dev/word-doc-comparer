@@ -227,6 +227,55 @@
             line-height: 1.6;
         }
 
+        .ai-status {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 8px 15px;
+            border-radius: 25px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            font-size: 0.9em;
+            transition: all 0.3s;
+        }
+
+        .ai-status.enabled {
+            background: rgba(46, 204, 113, 0.15);
+            border-color: rgba(46, 204, 113, 0.3);
+        }
+
+        .ai-status.disabled {
+            background: rgba(231, 76, 60, 0.15);
+            border-color: rgba(231, 76, 60, 0.3);
+        }
+
+        .ai-status.loading {
+            background: rgba(52, 152, 219, 0.15);
+            border-color: rgba(52, 152, 219, 0.3);
+        }
+
+        .ai-status-icon {
+            font-size: 1.1em;
+        }
+
+        .ai-status-text {
+            font-weight: 500;
+        }
+
+        .ai-status-detail {
+            font-size: 0.8em;
+            opacity: 0.8;
+            margin-left: 5px;
+        }
+
+        .header {
+            position: relative;
+        }
+
         @media (max-width: 768px) {
             .upload-grid {
                 grid-template-columns: 1fr;
@@ -235,12 +284,22 @@
             .main-content {
                 padding: 20px;
             }
+            
+            .ai-status {
+                position: static;
+                margin: 10px auto 0;
+                width: fit-content;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
+            <div class="ai-status loading" id="aiStatus">
+                <span class="ai-status-icon">⏳</span>
+                <span class="ai-status-text">Checking AI...</span>
+            </div>
             <h1>📄 Word Document Comparer</h1>
             <p>Upload your original document with comments and revised document for intelligent comparison</p>
         </div>
@@ -326,6 +385,7 @@
                 this.initializeEventListeners();
                 this.originalFile = null;
                 this.revisedFile = null;
+                this.checkAIStatus();
             }
 
             initializeEventListeners() {
@@ -481,6 +541,65 @@
             updateProgress(percent) {
                 const progressFill = document.getElementById('progressFill');
                 progressFill.style.width = `${percent}%`;
+            }
+
+            async checkAIStatus() {
+                try {
+                    const response = await fetch('/api/status');
+                    if (!response.ok) throw new Error('Failed to fetch status');
+                    
+                    const status = await response.json();
+                    this.updateAIStatusDisplay(status);
+                    this.updateAIFeatureDescription(status);
+                } catch (error) {
+                    console.error('Error checking AI status:', error);
+                    this.updateAIStatusDisplay({
+                        ai_enabled: false,
+                        primary_ai: 'none',
+                        anthropic: { ready: false },
+                        openai: { ready: false }
+                    });
+                }
+            }
+
+            updateAIStatusDisplay(status) {
+                const statusElement = document.getElementById('aiStatus');
+                const iconElement = statusElement.querySelector('.ai-status-icon');
+                const textElement = statusElement.querySelector('.ai-status-text');
+                
+                // Remove all status classes
+                statusElement.classList.remove('loading', 'enabled', 'disabled');
+                
+                if (status.ai_enabled) {
+                    statusElement.classList.add('enabled');
+                    iconElement.textContent = '🤖';
+                    
+                    if (status.primary_ai === 'anthropic') {
+                        textElement.innerHTML = 'AI Enabled<span class="ai-status-detail">(Claude)</span>';
+                    } else if (status.primary_ai === 'openai') {
+                        textElement.innerHTML = 'AI Enabled<span class="ai-status-detail">(GPT)</span>';
+                    } else {
+                        textElement.textContent = 'AI Enabled';
+                    }
+                    
+                    statusElement.title = 'AI-powered analysis is available for enhanced comment processing';
+                } else {
+                    statusElement.classList.add('disabled');
+                    iconElement.textContent = '⚠️';
+                    textElement.textContent = 'AI Disabled';
+                    statusElement.title = 'AI analysis not available - using pattern matching only';
+                }
+            }
+
+            updateAIFeatureDescription(status) {
+                const aiFeature = document.querySelector('.feature h3');
+                const aiFeatureDesc = document.querySelector('.feature p');
+                
+                if (status.ai_enabled) {
+                    aiFeatureDesc.textContent = 'Advanced AI-powered parsing of Word comments using Claude or GPT to understand intended changes and their scope';
+                } else {
+                    aiFeatureDesc.textContent = 'Pattern-based parsing of Word comments to understand intended changes (AI analysis unavailable)';
+                }
             }
         }
 
