@@ -751,27 +751,39 @@ REVISED DOCUMENT:
 ANALYSIS APPROACH:
 1. UNDERSTAND THE COMMENT: What specific change does "{comment_text}" request when applied to "{associated_text}"?
 
-2. DETERMINE EXPECTED CHANGE:
-   - What should "{associated_text}" become?
+2. IDENTIFY COMMENT TYPE:
+   - DIRECT REPLACEMENT: "Change X to Y", "should be Z"
+   - STYLE/GRAMMAR: "Don't use contractions", "Make more formal", "Fix grammar"
+   - CONTENT CHANGE: "Make this more exciting", "Add detail"
+   - CORRECTION: "spelling mistake", "wrong word"
+   - DELETION: "remove this", "delete"
+
+3. DETERMINE EXPECTED CHANGE:
+   - For STYLE comments: Identify what needs to be changed to follow the style rule
+   - For DIRECT comments: What should "{associated_text}" become?
    - Should this be applied globally (all instances) or locally (just this instance)?
    - If user specified scope as "{user_scope}", respect that preference
 
-3. VERIFY IMPLEMENTATION:
+4. VERIFY IMPLEMENTATION:
    - Search the revised document for evidence of the requested change
+   - For style comments: Check if the style rule was applied (e.g., contractions expanded)
    - Count instances before/after if relevant for global changes
    - Check if the change was applied correctly
 
 EXAMPLES OF COMMENT INTERPRETATION:
-- "Change her name to Claire" on "Diane" = Change "Diane" to "Claire" 
+- "Change her name to Claire" on "Diane" = Change "Diane" to "Claire"
+- "Don't use contractions" on "can't" = Change "can't" to "cannot", "it's" to "it is", etc.
 - "spelling mistake" on "recieve" = Change "recieve" to "receive"
 - "should be sunny" on "rainy" = Change "rainy" to "sunny"
+- "Make more formal" on casual text = Replace informal words/phrases with formal equivalents
 - "delete this" on "very very" = Remove the duplicate "very"
 
 RESPONSE FORMAT (JSON):
 {{
     "interpretation": "What change does the comment request?",
-    "expected_from": "What text should be changed (usually the associated text)",
-    "expected_to": "What it should become (null for deletions)",
+    "comment_type": "direct_replacement|style_grammar|content_change|correction|deletion",
+    "expected_from": "What text should be changed (for style: identify specific issues like 'can\\'t, it\\'s')",
+    "expected_to": "What it should become (for style: 'cannot, it is')",
     "scope_applied": "global|local",
     "status": "correctly_applied|partially_applied|not_applied|unclear",
     "evidence": "What evidence shows the change was/wasn't applied?",
@@ -851,7 +863,7 @@ Note: Associated text was not available, so analysis is based on document compar
             
             # Convert AI analysis to our format
             intent = self.validate_intent_structure({
-                'type': 'ai_determined',  # AI determines the type based on analysis
+                'type': ai_analysis.get('comment_type', 'ai_determined'),
                 'scope': ai_analysis.get('scope_applied', user_scope),
                 'from_text': ai_analysis.get('expected_from', associated_text),
                 'to_text': ai_analysis.get('expected_to'),
@@ -916,7 +928,7 @@ Note: Associated text was not available, so analysis is based on document compar
     def validate_intent_structure(self, intent):
         """Ensure intent object has all required fields"""
         required_fields = ['type', 'from_text', 'to_text', 'scope', 'raw_comment']
-        optional_fields = ['ai_interpretation']
+        optional_fields = ['ai_interpretation', 'style_description']
         
         for field in required_fields:
             if field not in intent:
@@ -1031,10 +1043,54 @@ Note: Associated text was not available, so analysis is based on document compar
         
         return None  # No context-aware pattern matched
     
+    def parse_style_comment(self, comment_text, associated_text=None):
+        """Parse style and grammar comments that don't require specific text replacement"""
+        
+        # Style/grammar patterns that the fallback system can recognize
+        style_patterns = [
+            # Contraction-related
+            (r"don'?t\s+use\s+contractions?", 'style_grammar', 'Remove contractions from text'),
+            (r"expand\s+contractions?", 'style_grammar', 'Expand contractions to full forms'),
+            (r"no\s+contractions?", 'style_grammar', 'Remove contractions from text'),
+            
+            # Formality
+            (r"make\s+(?:this\s+)?more\s+formal", 'style_grammar', 'Make text more formal'),
+            (r"use\s+formal\s+language", 'style_grammar', 'Use formal language'),
+            (r"less\s+casual", 'style_grammar', 'Make text less casual'),
+            
+            # Grammar
+            (r"fix\s+grammar", 'style_grammar', 'Fix grammatical errors'),
+            (r"correct\s+grammar", 'style_grammar', 'Correct grammatical errors'),
+            (r"grammar\s+(?:error|mistake)", 'style_grammar', 'Fix grammatical errors'),
+            
+            # General style
+            (r"improve\s+(?:the\s+)?writing", 'style_grammar', 'Improve writing style'),
+            (r"make\s+(?:this\s+)?clearer", 'style_grammar', 'Make text clearer'),
+            (r"simplify\s+(?:this\s+)?(?:text|language)?", 'style_grammar', 'Simplify the language'),
+        ]
+        
+        for pattern, change_type, description in style_patterns:
+            if re.search(pattern, comment_text, re.IGNORECASE):
+                return self.validate_intent_structure({
+                    'type': change_type,
+                    'from_text': associated_text or 'style_issue', 
+                    'to_text': 'style_corrected',
+                    'scope': 'local',  # Style comments usually apply to specific sections
+                    'raw_comment': comment_text,
+                    'style_description': description
+                })
+        
+        return None  # No style pattern matched
+    
     def parse_comment_intent(self, comment_text, associated_text=None):
         """Parse comment text to understand the intended change"""
         
-        # First, check for context-aware patterns that should use associated text
+        # First, check for style/grammar patterns that don't rely on specific text changes
+        style_patterns = self.parse_style_comment(comment_text, associated_text)
+        if style_patterns:
+            return style_patterns
+        
+        # Then, check for context-aware patterns that should use associated text
         if associated_text and associated_text.strip():
             context_patterns = self.parse_context_aware_comment(comment_text, associated_text.strip())
             if context_patterns:
@@ -1252,6 +1308,10 @@ Note: Associated text was not available, so analysis is based on document compar
                         }
                     }
         
+        elif intent['type'] == 'style_grammar':
+            # Handle style and grammar validation
+            return self.validate_style_change(intent, original_text, revised_text)
+        
         # Handle other change types (delete, add, format)
         return {
             'status': 'manual_review_required',
@@ -1321,6 +1381,77 @@ Note: Associated text was not available, so analysis is based on document compar
                 'status': 'manual_review_required',
                 'message': f'Cannot determine if "{target_word}" replacement was correctly applied'
             }
+    
+    def validate_style_change(self, intent, original_text, revised_text):
+        """Validate style and grammar changes"""
+        
+        style_description = intent.get('style_description', '').lower()
+        
+        if 'contraction' in style_description:
+            # Check for contraction removal/expansion
+            original_contractions = self.find_contractions(original_text)
+            revised_contractions = self.find_contractions(revised_text)
+            
+            if not original_contractions:
+                return {
+                    'status': 'correctly_applied',
+                    'message': 'No contractions found in original text - style rule already satisfied',
+                    'details': {
+                        'original_contractions': 0,
+                        'revised_contractions': len(revised_contractions)
+                    }
+                }
+            
+            if len(revised_contractions) < len(original_contractions):
+                return {
+                    'status': 'correctly_applied',
+                    'message': f'Contractions reduced from {len(original_contractions)} to {len(revised_contractions)}',
+                    'details': {
+                        'original_contractions': len(original_contractions),
+                        'revised_contractions': len(revised_contractions),
+                        'removed': original_contractions
+                    }
+                }
+            elif len(revised_contractions) == len(original_contractions):
+                return {
+                    'status': 'not_applied',
+                    'message': f'Contractions still present: {", ".join(original_contractions)}',
+                    'details': {
+                        'original_contractions': len(original_contractions),
+                        'revised_contractions': len(revised_contractions),
+                        'remaining': revised_contractions
+                    }
+                }
+            else:
+                return {
+                    'status': 'not_applied',
+                    'message': 'More contractions found in revised text than original',
+                    'details': {
+                        'original_contractions': len(original_contractions),
+                        'revised_contractions': len(revised_contractions)
+                    }
+                }
+        
+        # For other style patterns, use a basic text comparison
+        return {
+            'status': 'manual_review_required',
+            'message': f'Style change "{style_description}" requires manual review'
+        }
+    
+    def find_contractions(self, text):
+        """Find contractions in text"""
+        contraction_patterns = [
+            r"\b\w+'\w+\b",  # General pattern: word'word
+            r"\b(?:can't|won't|shouldn't|couldn't|wouldn't|isn't|aren't|wasn't|weren't|don't|doesn't|didn't|haven't|hasn't|hadn't|I'm|you're|he's|she's|it's|we're|they're|I'll|you'll|he'll|she'll|it'll|we'll|they'll|I'd|you'd|he'd|she'd|it'd|we'd|they'd|I've|you've|he's|she's|it's|we've|they've)\b"
+        ]
+        
+        contractions = []
+        for pattern in contraction_patterns:
+            matches = re.findall(pattern, text, re.IGNORECASE)
+            contractions.extend(matches)
+        
+        # Remove duplicates and return
+        return list(set(contractions))
     
     def generate_comparison_report(self, session_id):
         """Generate a comprehensive comparison report"""

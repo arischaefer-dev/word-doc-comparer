@@ -57,6 +57,26 @@ def test_ai_generalized_analysis():
             'original_text': 'The grumpy old man yelled at children.',
             'revised_text': 'The friendly old man smiled at children.',
             'description': 'Complex character description change'
+        },
+        {
+            'comment': {
+                'text': "Don't use contractions",
+                'associated_text': '"Phone lines are down," Eli said gruffly, handing her a blanket and a cup of tea. "Storm has cut the signal."',
+                'user_scope': 'local'
+            },
+            'original_text': '"Phone lines are down," Eli said gruffly, handing her a blanket and a cup of tea. "Storm has cut the signal."',
+            'revised_text': '"Phone lines are down," Eli said gruffly, handing her a blanket and a cup of tea. "Storm has cut the signal."',
+            'description': 'Style comment - contraction removal (no contractions found)'
+        },
+        {
+            'comment': {
+                'text': "Don't use contractions", 
+                'associated_text': '"I can\'t help you," she said. "It\'s too late."',
+                'user_scope': 'local'
+            },
+            'original_text': '"I can\'t help you," she said. "It\'s too late."',
+            'revised_text': '"I cannot help you," she said. "It is too late."',
+            'description': 'Style comment - contraction removal (contractions found and fixed)'
         }
     ]
     
