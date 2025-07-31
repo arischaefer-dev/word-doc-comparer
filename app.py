@@ -8,6 +8,7 @@ import logging
 from docx import Document
 from docx.shared import RGBColor
 import difflib
+# Force deployment update - v2.1
 import re
 
 app = Flask(__name__)
