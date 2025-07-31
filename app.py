@@ -553,18 +553,23 @@ class WordDocumentAnalyzer:
         analysis_results = []
         
         for comment in comments:
-            # Use AI-powered analysis if available, otherwise fall back to pattern matching
-            if get_anthropic_client() or get_openai_client():
+            # Prioritize AI-powered analysis for intelligent comment understanding
+            ai_client = get_anthropic_client() or get_openai_client()
+            
+            if ai_client:
                 try:
+                    logger.info(f"Using AI analysis for comment: '{comment['text'][:50]}...'")
                     result = self.ai_analyze_comment(comment, original_text, revised_text)
                     analysis_results.append(result)
                 except Exception as e:
                     logger.error(f"AI analysis failed for comment '{comment['text']}': {str(e)}")
-                    # Fall back to pattern matching
+                    logger.info("Falling back to pattern matching for this comment")
+                    # Fall back to pattern matching only if AI fails
                     result = self.fallback_analyze_comment(comment, original_text, revised_text)
                     analysis_results.append(result)
             else:
-                # Use pattern matching fallback
+                logger.warning("No AI available - using pattern matching (limited comment understanding)")
+                # Use pattern matching fallback when no AI is available
                 result = self.fallback_analyze_comment(comment, original_text, revised_text)
                 analysis_results.append(result)
         
@@ -709,107 +714,107 @@ class WordDocumentAnalyzer:
         return self.trim_to_sentences(revised_text[start_pos:end_pos])
     
     def ai_analyze_comment(self, comment, original_text, revised_text):
-        """Use GenAI to analyze a comment and validate changes"""
+        """Use GenAI to analyze a comment and validate changes with full context understanding"""
         
         comment_text = comment['text']
-        
-        # Check if user has specified GLOBAL scope - use fallback for precise counting
-        if comment.get('user_scope') == 'global':
-            logger.info(f"User specified GLOBAL scope, using fallback analysis for precise instance counting")
-            return self.fallback_analyze_comment(comment, original_text, revised_text)
-        
-        # Extract focused context around the comment position
-        context = self.extract_comment_context(comment, original_text, revised_text)
-        
-        # Get the text this comment is specifically about
         associated_text = comment.get('associated_text', '').strip()
+        user_scope = comment.get('user_scope', 'auto')
         
         # Debug logging
         logger.info(f"AI analysis for comment: '{comment_text[:50]}...'")
         logger.info(f"Associated text: '{associated_text}' (length: {len(associated_text)})")
+        logger.info(f"User specified scope: {user_scope}")
         
-        # Check if user specified local scope
-        user_scope = comment.get('user_scope', 'auto')
-        if user_scope == 'local':
-            logger.info("User specified LOCAL scope, AI will focus on specific instance only")
+        # Create a comprehensive AI prompt that understands context and scope
+        scope_description = {
+            'global': 'a GLOBAL change (should affect all instances throughout the document)',
+            'local': 'a LOCAL change (should affect only the specific instance being commented on)',
+            'auto': 'automatically determined scope based on the comment intent'
+        }
         
-        # Create a more focused analysis prompt using the associated text
+        # Provide the full document text for comprehensive analysis
         if associated_text:
-            scope_instruction = ""
-            if user_scope == 'local':
-                scope_instruction = f"""
-SCOPE: The user has specified this should be treated as a LOCAL change.
-- Focus ONLY on the specific instance: "{associated_text}"
-- Do NOT worry about other instances of the same text elsewhere in the document
-- Validate only whether THIS specific text was changed as requested
-"""
-            
-            prompt = f"""You are an expert document reviewer. Analyze this specific comment and whether it was correctly applied to the associated text.
+            prompt = f"""You are an expert document reviewer analyzing Word document comments and their implementation.
 
 COMMENT: "{comment_text}"
+COMMENTED ON: "{associated_text}"
+SCOPE: This is {scope_description[user_scope]}
 
-TEXT THIS COMMENT REFERS TO: "{associated_text}"
-{scope_instruction}
-DOCUMENT CONTEXT:
-Original area: "{context['original_context']}"
-Revised area:  "{context['revised_context']}"
+TASK: Evaluate whether the comment "{comment_text}" applied to the text/word/phrase "{associated_text}" was correctly implemented in the revised document.
 
-ANALYSIS INSTRUCTIONS:
-1. The comment specifically refers to the text: "{associated_text}"
-2. Determine what change the comment requests for this specific text
-3. Check if that change was correctly applied in the revised version
-4. Focus ONLY on the associated text and the requested change
-5. Ignore other unrelated changes in the document context
+ORIGINAL DOCUMENT:
+{original_text}
 
-EXAMPLES:
-- Comment "spelling mistake" + Associated text "recieve" = look for "recieve" being fixed to "receive"
-- Comment "change to Jimmy" + Associated text "Johnny" = look for "Johnny" being changed to "Jimmy"
-- Comment "delete this" + Associated text "very very" = look for duplicate "very" being removed
+REVISED DOCUMENT:
+{revised_text}
 
-What change does this comment request for the associated text, and was it applied correctly?
+ANALYSIS APPROACH:
+1. UNDERSTAND THE COMMENT: What specific change does "{comment_text}" request when applied to "{associated_text}"?
 
-JSON Response:
+2. DETERMINE EXPECTED CHANGE:
+   - What should "{associated_text}" become?
+   - Should this be applied globally (all instances) or locally (just this instance)?
+   - If user specified scope as "{user_scope}", respect that preference
+
+3. VERIFY IMPLEMENTATION:
+   - Search the revised document for evidence of the requested change
+   - Count instances before/after if relevant for global changes
+   - Check if the change was applied correctly
+
+EXAMPLES OF COMMENT INTERPRETATION:
+- "Change her name to Claire" on "Diane" = Change "Diane" to "Claire" 
+- "spelling mistake" on "recieve" = Change "recieve" to "receive"
+- "should be sunny" on "rainy" = Change "rainy" to "sunny"
+- "delete this" on "very very" = Remove the duplicate "very"
+
+RESPONSE FORMAT (JSON):
 {{
-    "change_type": "replace_local|delete|add|spelling|other",
-    "from_text": "the associated text that should be changed",
-    "to_text": "what it should be changed to (or null if deletion)",
-    "status": "correctly_applied|not_applied|unclear",
-    "message": "Brief explanation focusing on the associated text only",
-    "confidence": 0.90,
+    "interpretation": "What change does the comment request?",
+    "expected_from": "What text should be changed (usually the associated text)",
+    "expected_to": "What it should become (null for deletions)",
+    "scope_applied": "global|local",
+    "status": "correctly_applied|partially_applied|not_applied|unclear",
+    "evidence": "What evidence shows the change was/wasn't applied?",
+    "confidence": 0.95,
     "requires_manual_review": false
 }}
 
-Analyze ONLY the relationship between the comment and its associated text."""
+Analyze the full document context to make this determination."""
+        
         else:
-            # Fallback prompt when associated text is missing
+            # Handle case when associated text is missing
             prompt = f"""You are an expert document reviewer. Analyze this comment and determine what change it requests.
 
 COMMENT: "{comment_text}"
+SCOPE: This is {scope_description[user_scope]}
 
-DOCUMENT CONTEXT:
-Original area: "{context['original_context']}"
-Revised area:  "{context['revised_context']}"
+ORIGINAL DOCUMENT:
+{original_text}
+
+REVISED DOCUMENT:
+{revised_text}
+
+TASK: Determine what change the comment "{comment_text}" requests and verify if it was applied correctly.
 
 ANALYSIS INSTRUCTIONS:
-1. The associated text for this comment was not found, so analyze the comment based on context
-2. Determine what change the comment requests by examining the context
-3. Look for changes between original and revised areas that match the comment
-4. Focus on the most relevant change that aligns with the comment
+1. The specific text this comment refers to was not identified
+2. Compare the original and revised documents to find relevant changes
+3. Determine which change best matches the comment intent
+4. Verify if the change aligns with the requested scope
 
-What change does this comment request, and was it applied correctly?
-
-JSON Response:
+RESPONSE FORMAT (JSON):
 {{
-    "change_type": "replace_local|delete|add|spelling|other",
-    "from_text": "text that was changed (if identifiable)",
-    "to_text": "what it was changed to (or null if deletion)",
-    "status": "correctly_applied|not_applied|unclear",
-    "message": "Brief explanation of what change was found",
+    "interpretation": "What change does the comment request?",
+    "expected_from": "What text was changed (if identifiable)",
+    "expected_to": "What it was changed to (or null if deletion)",
+    "scope_applied": "global|local",
+    "status": "correctly_applied|partially_applied|not_applied|unclear",
+    "evidence": "What evidence shows the change was/wasn't applied?",
     "confidence": 0.70,
-    "requires_manual_review": false
+    "requires_manual_review": true
 }}
 
-Note: Associated text was not available, so analysis is based on context."""
+Note: Associated text was not available, so analysis is based on document comparison."""
 
         try:
             anthropic_client = get_anthropic_client()
@@ -846,18 +851,20 @@ Note: Associated text was not available, so analysis is based on context."""
             
             # Convert AI analysis to our format
             intent = self.validate_intent_structure({
-                'type': ai_analysis.get('change_type', 'unknown'),
-                'scope': ai_analysis.get('scope', 'local'),
-                'from_text': ai_analysis.get('from_text'),
-                'to_text': ai_analysis.get('to_text'),
-                'raw_comment': comment_text
+                'type': 'ai_determined',  # AI determines the type based on analysis
+                'scope': ai_analysis.get('scope_applied', user_scope),
+                'from_text': ai_analysis.get('expected_from', associated_text),
+                'to_text': ai_analysis.get('expected_to'),
+                'raw_comment': comment_text,
+                'ai_interpretation': ai_analysis.get('interpretation', '')
             })
             
             validation = {
                 'status': ai_analysis.get('status', 'unclear'),
-                'message': ai_analysis.get('message', 'AI analysis completed'),
+                'message': ai_analysis.get('evidence', 'AI analysis completed'),
                 'confidence': ai_analysis.get('confidence', 0.8),
-                'details': ai_analysis.get('details', {})
+                'interpretation': ai_analysis.get('interpretation', ''),
+                'evidence': ai_analysis.get('evidence', '')
             }
             
             return {
@@ -909,9 +916,16 @@ Note: Associated text was not available, so analysis is based on context."""
     def validate_intent_structure(self, intent):
         """Ensure intent object has all required fields"""
         required_fields = ['type', 'from_text', 'to_text', 'scope', 'raw_comment']
+        optional_fields = ['ai_interpretation']
+        
         for field in required_fields:
             if field not in intent:
                 intent[field] = None
+        
+        for field in optional_fields:
+            if field not in intent:
+                intent[field] = ''
+                
         return intent
     
     def parse_context_aware_comment(self, comment_text, associated_text):
@@ -944,6 +958,8 @@ Note: Associated text was not available, so analysis is based on context."""
             r'should\s+be\s+named\s+["\']?([^"\']+)["\']?',
             r'call\s+(?:him|her|them|it)\s+["\']?([^"\']+)["\']?',
             r'(?:the\s+)?(?:character|boy|girl|person)\s+should\s+be\s+called\s+["\']?([^"\']+)["\']?',  # "the character should be called Mike"
+            r'change\s+(?:his|her|their|the)\s+name\s+to\s+["\']?([^"\']+)["\']?',  # "change her name to Diane"
+            r'rename\s+(?:him|her|them|it)\s+to\s+["\']?([^"\']+)["\']?',  # "rename her to Diane"
         ]
         
         for pattern in name_patterns:

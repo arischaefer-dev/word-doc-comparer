@@ -72,6 +72,30 @@ def test_comment_parsing():
             'expected_to': 'Mike', 
             'expected_type': 'replace_global',
             'description': 'Character name change pattern'
+        },
+        {
+            'comment': 'Change her name to Diane',
+            'associated_text': 'Sarah',
+            'expected_from': 'Sarah',
+            'expected_to': 'Diane',
+            'expected_type': 'replace_global',
+            'description': 'Change pronoun name pattern (the reported issue)'
+        },
+        {
+            'comment': 'rename him to Alex',
+            'associated_text': 'Tom',
+            'expected_from': 'Tom',
+            'expected_to': 'Alex',
+            'expected_type': 'replace_global',
+            'description': 'Rename pronoun pattern'
+        },
+        {
+            'comment': 'change his name to Robert',
+            'associated_text': 'Bob',
+            'expected_from': 'Bob',
+            'expected_to': 'Robert',
+            'expected_type': 'replace_global',
+            'description': 'Change his name pattern'
         }
     ]
     
