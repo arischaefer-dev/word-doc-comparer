@@ -914,8 +914,115 @@ Note: Associated text was not available, so analysis is based on context."""
                 intent[field] = None
         return intent
     
+    def parse_context_aware_comment(self, comment_text, associated_text):
+        """Parse comments that should use the associated text as context"""
+        
+        # Skip context-aware parsing if the comment explicitly mentions the associated text
+        # This prevents "change all Johnny to Jimmy" from being parsed as context-aware
+        if associated_text.lower() in comment_text.lower():
+            return None
+        
+        # Skip if comment has explicit change patterns that should be handled normally
+        explicit_patterns = [
+            r'change\s+all\s+',
+            r'replace\s+all\s+',
+            r'find\s+and\s+replace',
+            r'everywhere',
+            r'globally',
+            r'throughout'
+        ]
+        
+        for pattern in explicit_patterns:
+            if re.search(pattern, comment_text, re.IGNORECASE):
+                return None
+        
+        # Pattern: "His/Her/Their name should be X" when commenting on a specific name
+        name_patterns = [
+            r'(?:his|her|their|the)\s+name\s+should\s+be\s+["\']?([^"\']+)["\']?',
+            r'(?:his|her|their|the)\s+name\s+is\s+["\']?([^"\']+)["\']?',
+            r'name\s+should\s+be\s+["\']?([^"\']+)["\']?',
+            r'should\s+be\s+named\s+["\']?([^"\']+)["\']?',
+            r'call\s+(?:him|her|them|it)\s+["\']?([^"\']+)["\']?',
+            r'(?:the\s+)?(?:character|boy|girl|person)\s+should\s+be\s+called\s+["\']?([^"\']+)["\']?',  # "the character should be called Mike"
+        ]
+        
+        for pattern in name_patterns:
+            match = re.search(pattern, comment_text, re.IGNORECASE)
+            if match:
+                target_name = match.group(1)
+                # Use associated text as the source name
+                return self.validate_intent_structure({
+                    'type': 'replace_global',  # Names are typically global changes
+                    'from_text': associated_text,
+                    'to_text': target_name,
+                    'scope': 'global',
+                    'raw_comment': comment_text
+                })
+        
+        # Pattern: "should be X" when commenting on a specific word (context-dependent)
+        should_be_patterns = [
+            r'should\s+be\s+["\']?([^"\']+)["\']?$',  # Simple "should be X" at end
+        ]
+        
+        for pattern in should_be_patterns:
+            match = re.search(pattern, comment_text, re.IGNORECASE)
+            if match:
+                target_text = match.group(1)
+                # Use associated text as the source
+                return self.validate_intent_structure({
+                    'type': 'replace_local',
+                    'from_text': associated_text,
+                    'to_text': target_text,
+                    'scope': 'local',
+                    'raw_comment': comment_text
+                })
+        
+        # Pattern: Comments that are just instructions without explicit source/target
+        instruction_patterns = [
+            r'make\s+(?:it|this)\s+["\']?([^"\']+)["\']?',
+            r'change\s+(?:it|this)\s+to\s+["\']?([^"\']+)["\']?',
+            r'use\s+["\']?([^"\']+)["\']?\s+instead',
+        ]
+        
+        for pattern in instruction_patterns:
+            match = re.search(pattern, comment_text, re.IGNORECASE)
+            if match:
+                target_text = match.group(1)
+                return self.validate_intent_structure({
+                    'type': 'replace_local',
+                    'from_text': associated_text,
+                    'to_text': target_text,
+                    'scope': 'local',
+                    'raw_comment': comment_text
+                })
+        
+        # Pattern: Single word/phrase comments (likely replacement targets)
+        single_word_patterns = [
+            r'^["\']?([^"\']+)["\']?$',  # Just a single word/phrase (replacement target)
+        ]
+        
+        for pattern in single_word_patterns:
+            match = re.search(pattern, comment_text.strip(), re.IGNORECASE)
+            if match and len(comment_text.strip().split()) <= 3:  # Max 3 words for single replacement
+                target_text = match.group(1)
+                return self.validate_intent_structure({
+                    'type': 'replace_local',
+                    'from_text': associated_text,
+                    'to_text': target_text,
+                    'scope': 'local',
+                    'raw_comment': comment_text
+                })
+        
+        return None  # No context-aware pattern matched
+    
     def parse_comment_intent(self, comment_text, associated_text=None):
         """Parse comment text to understand the intended change"""
+        
+        # First, check for context-aware patterns that should use associated text
+        if associated_text and associated_text.strip():
+            context_patterns = self.parse_context_aware_comment(comment_text, associated_text.strip())
+            if context_patterns:
+                return context_patterns
         
         # Enhanced patterns for common change instructions
         patterns = {
@@ -924,12 +1031,11 @@ Note: Associated text was not available, so analysis is based on context."""
                 r'change\s+(?:all\s+)?(?:instances?\s+of\s+)?["\']?([^"\']+)["\']?\s+(?:to|with)\s+["\']?([^"\']+)["\']?\s+(?:everywhere|globally|throughout)',
                 r'replace\s+(?:all\s+)?["\']?([^"\']+)["\']?\s+(?:with|to)\s+["\']?([^"\']+)["\']?\s+(?:everywhere|globally|throughout)',
                 r'(?:find|search)\s+and\s+replace\s+["\']?([^"\']+)["\']?\s+(?:with|to)\s+["\']?([^"\']+)["\']?',
-                r'change\s+all\s+["\']([^"\']+)["\']\s+(?:to|with)\s+["\']([^"\']+)["\']',  # "change all 'X' to 'Y'"
+                r'change\s+all\s+["\']?([^"\']+)["\']?\s+(?:to|with)\s+["\']?([^"\']+)["\']?',  # "change all X to Y" (with or without quotes)
                 
                 # Character/name change patterns (global by nature)
                 r'change\s+(?:the\s+)?(?:character|boy|girl|person|name)\'?s?\s+name\s+to\s+["\']?([^"\']+)["\']?',  # "change the boy's name to Jimmy"
                 r'rename\s+(?:the\s+)?(?:character|boy|girl|person)\s+to\s+["\']?([^"\']+)["\']?',  # "rename the character to Jimmy"
-                r'(?:the\s+)?(?:character|boy|girl|person)\s+should\s+be\s+called\s+["\']?([^"\']+)["\']?',  # "the boy should be called Jimmy"
             ],
             
             # Local replacements - most common patterns
@@ -941,7 +1047,7 @@ Note: Associated text was not available, so analysis is based on context."""
                 r'should\s+be\s+["\']?([^"\']+)["\']?\s+(?:not|instead\s+of)\s+["\']?([^"\']+)["\']?',
                 r'(?:fix|correct):\s*["\']?([^"\']+)["\']?\s+(?:to|->|→)\s+["\']?([^"\']+)["\']?',
                 r'(?:typo|error):\s*["\']?([^"\']+)["\']?\s+(?:should\s+be|->|→)\s+["\']?([^"\']+)["\']?',
-                r'["\']?([^"\']+)["\']?\s+(?:should\s+be|->|→)\s+["\']?([^"\']+)["\']?',
+                # REMOVED the problematic generic pattern that was causing "His name should be Eli" to be parsed incorrectly
                 r'["\']?([^"\']+)["\']?\s*[?]\s*["\']?([^"\']+)["\']?',  # "real? reel"
                 r'use\s+["\']?([^"\']+)["\']?\s+(?:instead\s+of|not)\s+["\']?([^"\']+)["\']?'
             ],
