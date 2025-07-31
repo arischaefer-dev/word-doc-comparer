@@ -1846,6 +1846,40 @@ def api_status():
     }
     return jsonify(status)
 
+@app.route('/api/test-contractions')
+def test_contractions():
+    """Test endpoint to verify contraction parsing is working"""
+    test_text = '"Phone lines are down," Elias said gruffly, handing her a blanket and a cup of tea. "Storm\'s cut the signal."'
+    
+    analyzer = WordDocumentAnalyzer()
+    
+    # Test contraction detection
+    contractions = analyzer.find_contractions(test_text)
+    
+    # Test style parsing
+    style_result = analyzer.parse_style_comment("Don't use contractions", test_text)
+    
+    return jsonify({
+        'version': '2.1',
+        'deployment_time': datetime.now().isoformat(),
+        'test_text': test_text,
+        'contractions_found': contractions,
+        'style_parsing': {
+            'from_text': style_result['from_text'] if style_result else 'No match',
+            'to_text': style_result['to_text'] if style_result else 'No match',
+            'type': style_result['type'] if style_result else 'No match'
+        },
+        'expected': {
+            'contractions': ["Storm's"],
+            'from_text': "Storm's",
+            'to_text': "Storm has"
+        },
+        'status': 'working' if (contractions == ["Storm's"] and 
+                               style_result and 
+                               style_result['from_text'] == "Storm's" and 
+                               style_result['to_text'] == "Storm has") else 'broken'
+    })
+
 @app.route('/upload', methods=['POST'])
 def upload_files():
     """Handle file uploads"""
