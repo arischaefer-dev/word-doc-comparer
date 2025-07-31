@@ -9,8 +9,6 @@ from docx import Document
 from docx.shared import RGBColor
 import difflib
 import re
-import anthropic
-import openai
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
@@ -21,21 +19,64 @@ app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'dev-key-change-in-productio
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+try:
+    import anthropic
+    ANTHROPIC_AVAILABLE = True
+    logger.info("Anthropic package imported successfully")
+except ImportError as e:
+    logger.error(f"Failed to import anthropic: {e}")
+    ANTHROPIC_AVAILABLE = False
+
+try:
+    import openai
+    OPENAI_AVAILABLE = True
+    logger.info("OpenAI package imported successfully")
+except ImportError as e:
+    logger.error(f"Failed to import openai: {e}")
+    OPENAI_AVAILABLE = False
+
 # GenAI Configuration
 # Try to get API keys from environment variables
 ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY')
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
-# Initialize AI clients if keys are available
+# Initialize AI clients if keys are available (lazy initialization)
 anthropic_client = None
 openai_client = None
 
-if ANTHROPIC_API_KEY:
-    anthropic_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-    logger.info("Anthropic Claude API initialized")
-elif OPENAI_API_KEY:
-    openai_client = openai.OpenAI(api_key=OPENAI_API_KEY)
-    logger.info("OpenAI API initialized")
+def get_anthropic_client():
+    """Get Anthropic client with lazy initialization"""
+    global anthropic_client
+    if anthropic_client is None and ANTHROPIC_API_KEY and ANTHROPIC_AVAILABLE:
+        try:
+            anthropic_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+            logger.info("Anthropic Claude API initialized")
+        except Exception as e:
+            logger.error(f"Failed to initialize Anthropic client: {str(e)}")
+            anthropic_client = False  # Mark as failed to avoid retrying
+    return anthropic_client if anthropic_client is not False else None
+
+def get_openai_client():
+    """Get OpenAI client with lazy initialization"""
+    global openai_client
+    if openai_client is None and OPENAI_API_KEY and OPENAI_AVAILABLE:
+        try:
+            openai_client = openai.OpenAI(api_key=OPENAI_API_KEY)
+            logger.info("OpenAI API initialized")
+        except Exception as e:
+            logger.error(f"Failed to initialize OpenAI client: {str(e)}")
+            openai_client = False  # Mark as failed to avoid retrying
+    return openai_client if openai_client is not False else None
+
+# Log available API keys and packages at startup (without initializing clients)
+if ANTHROPIC_API_KEY and ANTHROPIC_AVAILABLE:
+    logger.info("Anthropic API key found and package available - will initialize client on first use")
+elif ANTHROPIC_API_KEY and not ANTHROPIC_AVAILABLE:
+    logger.warning("Anthropic API key found but package not available - install with: pip install anthropic")
+elif OPENAI_API_KEY and OPENAI_AVAILABLE:
+    logger.info("OpenAI API key found and package available - will initialize client on first use")
+elif OPENAI_API_KEY and not OPENAI_AVAILABLE:
+    logger.warning("OpenAI API key found but package not available - install with: pip install openai")
 else:
     logger.warning("No AI API keys found. Set ANTHROPIC_API_KEY or OPENAI_API_KEY environment variables for AI-powered analysis.")
 
@@ -513,7 +554,7 @@ class WordDocumentAnalyzer:
         
         for comment in comments:
             # Use AI-powered analysis if available, otherwise fall back to pattern matching
-            if anthropic_client or openai_client:
+            if get_anthropic_client() or get_openai_client():
                 try:
                     result = self.ai_analyze_comment(comment, original_text, revised_text)
                     analysis_results.append(result)
@@ -771,6 +812,9 @@ JSON Response:
 Note: Associated text was not available, so analysis is based on context."""
 
         try:
+            anthropic_client = get_anthropic_client()
+            openai_client = get_openai_client()
+            
             if anthropic_client:
                 response = anthropic_client.messages.create(
                     model="claude-3-haiku-20240307",  # Fast and cost-effective
@@ -1422,7 +1466,19 @@ def index():
 @app.route('/health')
 def health_check():
     """Health check endpoint for Railway"""
-    return jsonify({'status': 'healthy', 'service': 'word-doc-comparer'})
+    health_status = {
+        'status': 'healthy', 
+        'service': 'word-doc-comparer',
+        'api_status': {
+            'anthropic_key_available': bool(ANTHROPIC_API_KEY),
+            'anthropic_package_available': ANTHROPIC_AVAILABLE,
+            'anthropic_ready': bool(ANTHROPIC_API_KEY and ANTHROPIC_AVAILABLE),
+            'openai_key_available': bool(OPENAI_API_KEY),
+            'openai_package_available': OPENAI_AVAILABLE,
+            'openai_ready': bool(OPENAI_API_KEY and OPENAI_AVAILABLE)
+        }
+    }
+    return jsonify(health_status)
 
 @app.route('/upload', methods=['POST'])
 def upload_files():
