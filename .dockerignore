@@ -1,0 +1,47 @@
+# Docker ignore file for Railway deployment
+
+# Git
+.git
+.gitignore
+
+# Development files
+.claude/
+*.log
+flask.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test files
+test_*.py
+*_test.py
+tests/
+
+# Documentation
+README.md
+*.md
+
+# Example files
+.env.example
+
+# Optional files
+nixpacks.toml
